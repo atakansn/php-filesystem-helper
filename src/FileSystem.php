@@ -498,7 +498,7 @@ class FileSystem
      * @param string $file
      * @return int|bool
      */
-    public function filePermissions(string $file): int|bool
+    public function filePerm(string $file): int|bool
     {
         return substr(sprintf('%o', fileperms($file)), -4);
     }
