@@ -443,7 +443,7 @@ class FileSystem
      * @param string $path
      * @return false|string
      */
-    public function sharedGet(string $path)
+    public function shared(string $path)
     {
         $contents = '';
 
