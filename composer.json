@@ -1,0 +1,20 @@
+{
+    "name": "php/helpers",
+    "description": "PHP functions used in daily life",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Helper\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Atakan Senturk",
+            "email": "atkansenturk@protonmail.com"
+        }
+    ],
+    "require": {
+      "ext-fileinfo": "*"
+    }
+}
