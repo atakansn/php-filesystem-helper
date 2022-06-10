@@ -2,6 +2,7 @@
 
 namespace Helper;
 
+use RuntimeException;
 
 class FileSystem
 {
@@ -80,12 +81,12 @@ class FileSystem
 
     /**
      * @param string $path
-     * @param int $options
+     * @param int|null $options
      * @return array|string
      */
-    public function info(string $path, int $options = PATHINFO_ALL): array|string
+    public function info(string $path, int $options = null): array|string
     {
-        return pathinfo($path, $options);
+        return pathinfo($path, $options ?? PATHINFO_ALL);
     }
 
     /**
@@ -250,7 +251,7 @@ class FileSystem
         $files = new \FilesystemIterator($directory);
 
         foreach ($files as $file) {
-            $directories[] = $files->getPathname();
+            $directories[] = $file->getPathname();
         }
 
         return $directories;
@@ -355,20 +356,6 @@ class FileSystem
         return finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file);
     }
 
-    /**
-     * @param string $path
-     * @param bool $lock
-     * @return false|string
-     * @throws \Exception
-     */
-    public function get(string $path, bool $lock = false)
-    {
-        if ($this->isFile($path)) {
-            return $lock ? $this->sharedGet($path) : file_get_contents($path);
-        }
-
-        throw new \Exception("File does not exists at path {$path}");
-    }
 
     /**
      * @param string $path
@@ -384,49 +371,34 @@ class FileSystem
     /**
      * @param string $path
      * @param string $content
-     * @return void
+     * @return bool
      */
-    public function replace(string $path, string $content)
+    public function replace(string $path, string $content) : bool
     {
         clearstatcache(true, $path);
 
-        $path = realpath($path) ?: $path;
+        $file = realpath($path) ?: $path;
 
-        $tempPath = tempnam($this->dirname($path), $this->basename($path));
+        $tempPath = tempnam($this->dirname($file), $this->basename($file));
 
         chmod($tempPath, 0777 - umask());
 
         $this->filePut($tempPath, $content);
 
-        rename($tempPath, $path);
+        return rename($tempPath, $file);
     }
 
     /**
      * @param array|string $search
      * @param array|string $replace
      * @param string $path
-     * @return void
+     * @return bool|int
      */
     public function replaceInFile(array|string $search, array|string $replace, string $path)
     {
-        file_put_contents($path, str_replace($search, $replace, file_get_contents($path)));
+        return file_put_contents($path, str_replace($search, $replace, file_get_contents($path)));
     }
 
-
-    /**
-     * @param string $path
-     * @param string $data
-     * @return false|int
-     * @throws \Exception
-     */
-    public function prepend(string $path, string $data)
-    {
-        if ($this->exists($path)) {
-            return $this->filePut($path, $data . $this->get($path));
-        }
-
-        return $this->filePut($path, $data);
-    }
 
     /**
      * @param string $path
@@ -501,6 +473,72 @@ class FileSystem
     public function filePerm(string $file): int|bool
     {
         return substr(sprintf('%o', fileperms($file)), -4);
+    }
+
+    /**
+     * @return array|false|mixed
+     */
+    public function getDisks()
+    {
+        if(PHP_OS_FAMILY === 'Windows') {
+            $command = shell_exec('fsutil fsinfo drives');
+
+            $disks = str_word_count($command,1);
+
+            if($disks[0] !== 'Drives') {
+                return false;
+            }
+
+            unset($disks[0]);
+
+            foreach ($disks as $key => $value) {
+                $disks[$key] = $value . ':\\';
+            }
+
+            return $disks;
+        }
+
+        $unixCmd = shell_exec('mount');
+
+        $cmdExp = explode(' ',$unixCmd);
+
+        $unixDisk = [];
+
+        foreach ($cmdExp as $value) {
+            if(substr($value,'/dev/')) {
+                $unixDisk[] = $value;
+            }
+        }
+
+        return $unixDisk;
+    }
+
+    /**
+     * @param $byte
+     * @return string
+     */
+    public function convertBytes($byte)
+    {
+        $types = ['B','KB','MB','GB','TB','PB','EB','ZB','YB'];
+
+        $exp = $types ? floor(log($byte) / log(1024)) : 0;
+
+        return sprintf('%.2f '. $types[$exp],($byte / (1024 ** floor($exp))));
+
+    }
+
+    /**
+     * @param string $direction
+     * @param bool $total
+     * @return string
+     */
+    public function freeDiskSpace(string $direction, bool $total = false)
+    {
+        if($total) {
+            return $this->convertBytes(disk_total_space($direction));
+        }
+
+        return $this->convertBytes(disk_free_space($direction));
     }
 
 }
